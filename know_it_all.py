@@ -24,6 +24,13 @@ class KnowItAllGame:
         root.geometry('1000x780')
         root.minsize(920, 720)
         root.configure(bg=ui.COLORS['bg'])
+
+        try:
+            self.icon_img = tk.PhotoImage(file='media/pictures/ico.png')
+            root.iconphoto(True, self.icon_img)
+        except Exception as e:
+            print(f"Иконка не найдена: {e}")
+
         self.audio = Audio()
         self.dark_theme = tk.BooleanVar(value=False)
         self.subject = tk.StringVar(value=SUBJECTS[0])
