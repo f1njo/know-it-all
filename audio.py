@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
@@ -19,7 +20,14 @@ class Audio:
         self.owns_mixer = False
         if pygame is None:
             return
-        folder = Path(folder) if folder else Path(__file__).resolve().parent / 'media/music'
+        
+        if folder:
+            folder = Path(folder)
+        elif getattr(sys, 'frozen', False):
+            folder = Path(sys.executable).resolve().parent / 'media/music'
+        else:
+            folder = Path(__file__).resolve().parent / 'media/music'
+
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init()
