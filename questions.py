@@ -1,4 +1,3 @@
-"""Age-appropriate question bank and arithmetic generators for Know-It-All."""
 from dataclasses import dataclass
 import random
 
@@ -19,7 +18,7 @@ def normalize(value):
     return ' '.join(str(value).strip().casefold().replace('ё', 'е').split())
 
 
-# prompt | correct answer | three distractors separated by / | explanation
+
 BANK = {
 ('География', 'Лёгкий'): """
 Как называется наша планета?|Земля|Марс/Луна/Солнце|Земля — планета, на которой мы живём.
@@ -144,16 +143,30 @@ BANK = {
 }
 
 
+def parse_bank():
+    bank = {}
+    for key, rows in BANK.items():
+        entries = []
+        subject, difficulty = key
+        for index, row in enumerate(rows.strip().splitlines()):
+            prompt, answer, wrong, explanation = row.split('|')
+            typed = ((subject == 'Английский' and ' ' not in answer and index % 3 == 0)
+                     or (subject == 'Информатика' and answer.isdigit()))
+            entries.append(Question(prompt, answer, (answer, *wrong.split('/')), explanation, typed))
+        bank[key] = tuple(entries)
+    return bank
+
+
+CATALOG = parse_bank()
+
+
 def bank_questions(subject, difficulty, rng):
     result = []
-    for index, row in enumerate(BANK[(subject, difficulty)].strip().splitlines()):
-        prompt, answer, wrong, explanation = row.split('|')
-        options = [answer, *wrong.split('/')]
+    for question in CATALOG[(subject, difficulty)]:
+        options = list(question.options)
         rng.shuffle(options)
-        # Short English vocabulary and numeric logic also train keyboard input.
-        typed = ((subject == 'Английский' and ' ' not in answer and index % 3 == 0)
-                 or (subject == 'Информатика' and answer.isdigit()))
-        result.append(Question(prompt, answer, tuple(options), explanation, typed))
+        result.append(Question(question.prompt, question.answer, tuple(options),
+                               question.explanation, question.typed))
     rng.shuffle(result)
     return result
 
@@ -219,7 +232,6 @@ def make_test(subject, difficulty, rng=None):
 
 
 class Session:
-    """Quiz state independent of the Tkinter interface."""
     def __init__(self, questions):
         if not questions:
             raise ValueError('Тест не может быть пустым')
