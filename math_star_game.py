@@ -1,5 +1,6 @@
 """Know-It-All: five school subjects in a star-themed Tkinter quiz."""
 import math
+import pygame
 import random
 import tkinter as tk
 from tkinter import ttk
@@ -20,6 +21,30 @@ class MathStarGame:
         root.geometry('820x780')
         root.minsize(760, 720)
         root.configure(bg=BG)
+
+        # Инициализация звукового движка pygame
+        pygame.mixer.init()
+        try:
+            pygame.mixer.music.load('media/music/Relaxing music.mp3')  # Путь к вашему файлу
+            pygame.mixer.music.set_volume(0.5)            # Начальная громкость (от 0.0 до 1.0)
+            pygame.mixer.music.play(-1)                   # -1 означает бесконечный цикл
+        except Exception as e:
+            print(f"Музыкальный файл не найден или не загружен: {e}")
+
+        # --- Загрузка звуков кликов (SFX) ---
+        self.sfx_muted = False
+        try:
+            self.std_click_sound = pygame.mixer.Sound('media/music/Standart btn.mp3')
+        except Exception as e:
+            self.std_click_sound = None
+            print(f"Звук standart_btn не найден: {e}")
+            
+        try:
+            self.start_click_sound = pygame.mixer.Sound('media/music/Game start btn.mp3')
+        except Exception as e:
+            self.start_click_sound = None
+            print(f"Звук start_btn не найден: {e}")
+        
         self.subject = tk.StringVar(value=SUBJECTS[0])
         self.difficulty = tk.StringVar(value=DIFFICULTIES[0])
         self.session = None
@@ -33,32 +58,207 @@ class MathStarGame:
         self.show_home()
         self.animate()
 
+        # Инициализация звукового движка pygame
+        pygame.mixer.init()
+        try:
+            pygame.mixer.music.load('media/music/Relaxing music.mp3')  # Путь к вашему файлу
+            pygame.mixer.music.set_volume(0.5)            # Начальная громкость (от 0.0 до 1.0)
+            pygame.mixer.music.play(-1)                   # -1 означает бесконечный цикл
+        except Exception as e:
+            print(f"Музыкальный файл не найден или не загружен: {e}")
+
+        # --- Загрузка звуков кликов (SFX) ---
+        self.sfx_muted = False
+        try:
+            self.std_click_sound = pygame.mixer.Sound('media/music/Standart btn.mp3')
+        except Exception as e:
+            self.std_click_sound = None
+            print(f"Звук standart_btn не найден: {e}")
+            
+        try:
+            self.start_click_sound = pygame.mixer.Sound('media/music/Game start btn.mp3')
+        except Exception as e:
+            self.start_click_sound = None
+            print(f"Звук start_btn не найден: {e}")
+
+    def show_volume_slider(self, event=None):
+        # Показываем ползунок ПЕРЕД кнопкой кликов, чтобы она оставалась доступной справа
+        if not self.volume_slider.winfo_ismapped():
+            self.volume_slider.pack(side='left', before=self.sfx_btn, padx=(6, 6))
+
+    def hide_volume_slider(self, event=None):
+        # Скрываем ползунок, только если курсор действительно ушел со всех элементов управления звуком
+        x, y = self.root.winfo_pointerxy()
+        widget_under_mouse = self.root.winfo_containing(x, y)
+        if widget_under_mouse not in (self.volume_slider, self.sound_btn, self.sfx_btn):
+            self.volume_slider.pack_forget()
+
+    def toggle_sound(self):
+        self.sound_muted = not self.sound_muted
+        if self.sound_muted:
+            self.sound_btn.configure(text='🔇', fg=MUTED)
+            pygame.mixer.music.pause()  # Ставим музыку на паузу
+        else:
+            self.sound_btn.configure(text='🔊', fg=GOLD)
+            pygame.mixer.music.unpause()  # Возобновляем музыку
+
+    def toggle_sfx(self):
+        self.sfx_muted = not self.sfx_muted
+        if self.sfx_muted:
+            self.sfx_btn.configure(fg=MUTED)
+        else:
+            self.sfx_btn.configure(fg=GOLD)
+
+    def on_volume_changed(self, value):
+        vol = float(value)
+        if self.sound_muted and vol > 0:
+            # Если двигаем ползунок при выключенном звуке — автоматически включаем звук обратно
+            self.sound_muted = False
+            self.sound_btn.configure(text='🔊', fg=GOLD)
+            pygame.mixer.music.unpause()
+        pygame.mixer.music.set_volume(vol)  # Меняем громкость в реальном времени
+
     def label(self, parent, text='', size=14, color=TEXT, **kwargs):
         return tk.Label(parent, text=text, bg=parent.cget('bg'), fg=color,
                         font=('Arial', size), **kwargs)
 
-    def button(self, parent, text, command, color='#3d3d5c', **kwargs):
-        return tk.Button(parent, text=text, command=command, font=('Arial', 13, 'bold'),
-                         bg=color, fg=TEXT, activebackground='#555580', activeforeground=TEXT,
+    def button(self, parent, text, command, color='#3d3d5c', sound=None, **kwargs):
+        def lighten_hex(hex_str, factor=1.25):
+            hex_str = hex_str.lstrip('#')
+            try:
+                rgb = tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+                new_rgb = tuple(min(255, int(c * factor)) for c in rgb)
+                return f'#{new_rgb[0]:02x}{new_rgb[1]:02x}{new_rgb[2]:02x}'
+            except Exception:
+                return hex_str
+
+        hover_color = lighten_hex(color, 1.25)
+
+        # Выбираем звук: если передан персональный, берем его, иначе стандартный
+        active_sound = sound if sound is not None else getattr(self, 'std_click_sound', None)
+
+        def on_click_wrapper():
+            if not getattr(self, 'sfx_muted', False) and active_sound:
+                active_sound.play()
+            if command:
+                command()
+
+        btn = tk.Button(parent, text=text, command=on_click_wrapper, font=('Arial', 13, 'bold'),
+                         bg=color, fg=TEXT, activebackground=color, activeforeground=TEXT,
                          padx=14, pady=9, relief='flat', cursor='hand2', **kwargs)
+
+        def on_enter(event):
+            if btn['state'] != 'disabled':
+                btn.configure(bg=hover_color)
+
+        def on_leave(event):
+            if btn['state'] != 'disabled':
+                btn.configure(bg=color)
+
+        btn.bind('<Enter>', on_enter)
+        btn.bind('<Leave>', on_leave)
+        
+        return btn
 
     def setup_ui(self):
         header = tk.Frame(self.root, bg=BG)
         header.pack(fill='x', padx=24, pady=(16, 8))
         self.label(header, '⭐ Всезнайка', 24, GOLD).pack(side='left')
+
+        # --- Настройка красивого стиля для ползунка ---
+        style = ttk.Style()
+        style.theme_use('clam')  # 'clam' позволяет менять цвета элементов
+
+        # Настройка стиля для прогресс-бара
+        style.configure('Custom.Horizontal.TProgressbar',
+                        troughcolor='#3d3d5c',  # Цвет фоновой дорожки (тёмный)
+                        background=GOLD,        # Цвет заполненной шкалы (золотой)
+                        bordercolor='#3d3d5c',
+                        lightcolor=GOLD,
+                        darkcolor=GOLD)
+
+        style.configure('Custom.Horizontal.TScale',
+                        background=BG,          # Фоновый цвет вокруг ползунка
+                        troughcolor='#3d3d5c',  # Цвет дорожки (желоба)
+                        slidercolor=GOLD,       # Цвет самого ползунка (бегунка)
+                        bordercolor='#3d3d5c',
+                        lightcolor=GOLD,
+                        darkcolor=GOLD)
+
+        # Настройка красивого стиля для выпадающих списков (Combobox)
+        style.configure('Custom.TCombobox',
+                        fieldbackground='#3d3d5c',  # Цвет фона поля ввода
+                        background='#3d3d5c',      # Цвет кнопки со стрелочкой
+                        foreground=TEXT,           # Цвет текста («Математика», «Лёгкий»)
+                        arrowcolor=GOLD,           # Цвет стрелочки (делаем золотым под стиль игры)
+                        bordercolor='#3d3d5c',
+                        lightcolor='#3d3d5c',
+                        darkcolor='#3d3d5c')
+
+        # Настройка внешнего вида самого выпадающего списка (всплывающего окна)
+        self.root.option_add('*TCombobox*Listbox.background', '#252538')      # Тёмный фон списка (под цвет PANEL)
+        self.root.option_add('*TCombobox*Listbox.foreground', TEXT)          # Цвет текста элементов
+        self.root.option_add('*TCombobox*Listbox.selectBackground', '#555580') # Цвет подсветки при наведении/выборе
+        self.root.option_add('*TCombobox*Listbox.selectForeground', TEXT)      # Цвет текста выбранного элемента
+        self.root.option_add('*TCombobox*Listbox.font', ('Arial', 12))         # Шрифт элементов списка
+        self.root.option_add('*TCombobox*Listbox.relief', 'flat')            # Убираем лишние рамки
+        self.root.option_add('*TCombobox*Listbox.highlightthickness', 0)
+        
+        # Настройка цветов при выборе элементов и наведении
+        style.map('Custom.TCombobox',
+                  fieldbackground=[('readonly', '#3d3d5c')],
+                  selectbackground=[('readonly', '#555580')],
+                  selectforeground=[('readonly', TEXT)],
+                  background=[('readonly', '#3d3d5c')])
+
+        # --- Блок управления звуком ---
+        self.sound_muted = False
+        self.volume_var = tk.DoubleVar(value=0.5) # Громкость от 0 до 1
+        
+        sound_frame = tk.Frame(header, bg=BG)
+        sound_frame.pack(side='right', padx=10)
+        
+        # Кнопка звука (иконка)
+        self.sound_btn = tk.Button(sound_frame, text='🔊', font=('Arial', 12),
+                                   bg=PANEL, fg=TEXT, relief='flat',
+                                   activebackground=PANEL, activeforeground=TEXT,
+                                   cursor='hand2', command=self.toggle_sound, width=3)
+        self.sound_btn.pack(side='left')
+
+    # Кнопка включения/выключения звуков кликов (SFX)
+        self.sfx_btn = tk.Button(sound_frame, text='🖱️', font=('Arial', 12),
+                                  bg=PANEL, fg=TEXT, relief='flat',
+                                  activebackground=PANEL, activeforeground=TEXT,
+                                  cursor='hand2', command=self.toggle_sfx, width=3)
+        self.sfx_btn.pack(side='left', padx=(4, 0))
+        
+        # Ползунок громкости (создаем, но пока не упаковываем, чтобы скрыт)
+        self.volume_slider = ttk.Scale(sound_frame, from_=0, to=1, orient='horizontal',
+                                       variable=self.volume_var, length=90, 
+                                       style='Custom.Horizontal.TScale',
+                                       command=self.on_volume_changed)
+        
+        # События наведения мыши для показа/скрытия ползунка
+        sound_frame.bind('<Enter>', self.show_volume_slider)
+        sound_frame.bind('<Leave>', self.hide_volume_slider)
+        self.sound_btn.bind('<Enter>', self.show_volume_slider)
+
+        # Подпись в шапке
         self.label(header, 'Учись, пробуй, открывай!', 12, MUTED).pack(side='right')
 
         controls = tk.Frame(self.root, bg=PANEL)
         controls.pack(fill='x', padx=24, pady=8)
         self.label(controls, 'Предмет:', 12).grid(row=0, column=0, padx=10, pady=12)
         self.subject_box = ttk.Combobox(controls, textvariable=self.subject, values=SUBJECTS,
-                                       state='readonly', width=17, font=('Arial', 12))
+                                       state='readonly', width=17, font=('Arial', 12), 
+                                       style='Custom.TCombobox')
         self.subject_box.grid(row=0, column=1, padx=4)
         self.label(controls, 'Сложность:', 12).grid(row=0, column=2, padx=10)
         self.level_box = ttk.Combobox(controls, textvariable=self.difficulty, values=DIFFICULTIES,
-                                     state='readonly', width=12, font=('Arial', 12))
+                                     state='readonly', width=12, font=('Arial', 12), 
+                                     style='Custom.TCombobox')
         self.level_box.grid(row=0, column=3, padx=4)
-        self.start_button = self.button(controls, 'Начать', self.start_test)
+        self.start_button = self.button(controls, 'Начать', self.start_test, sound=self.start_click_sound)
         self.start_button.grid(row=0, column=4, padx=12)
         controls.columnconfigure(4, weight=1)
 
@@ -68,7 +268,7 @@ class MathStarGame:
         self.progress.pack(side='left')
         self.stats = self.label(stats, '', 12, GOLD)
         self.stats.pack(side='right')
-        self.bar = ttk.Progressbar(self.root, maximum=1)
+        self.bar = ttk.Progressbar(self.root, maximum=1, style='Custom.Horizontal.TProgressbar')
         self.bar.pack(fill='x', padx=24, pady=(0, 8))
 
         self.canvas = tk.Canvas(self.root, height=220, bg=PANEL, highlightthickness=0)
@@ -261,9 +461,10 @@ class MathStarGame:
         self.animation_id = self.root.after(30, self.animate)
 
     def close(self):
-        self.closed = True
+        self.closed = {}
         if self.animation_id is not None:
             self.root.after_cancel(self.animation_id)
+        pygame.mixer.quit()  # Корректно завершаем работу звуковой системы при закрытии игры
         self.root.destroy()
 
 
